@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Локальная база данных и логи
+prisma/*.db
+prisma/*.db-journal
+*.log
+.env
+.env.local
+
+# Системные файлы macOS
+.DS_Store

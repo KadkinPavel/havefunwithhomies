@@ -1,0 +1,61 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  role         String        // "STUDENT" | "CURATOR" | "ADMIN"
+  curatorId    String?       
+  curator      User?         @relation("CuratorStudents", fields: [curatorId], references: [id])
+  students     User[]        @relation("CuratorStudents")
+  submissions  Submission[]
+  lastActiveAt DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  gradeRange  String   // "1-4 класс" или "5-9 класс"
+  published   Boolean  @default(false)
+  steps       Step[]
+  createdAt   DateTime @default(now())
+}
+
+model Step {
+  id           String        @id @default(cuid())
+  courseId     String
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title        String
+  order        Int
+  type         String        // "THEORY" | "QUIZ" | "CODE" | "SCRATCH" | "MINECRAFT"
+  maxScore     Int           @default(10)
+  isAutoCheck  Boolean       @default(false)
+  // JSON-поле обеспечивает полиморфную расширяемость шага
+  payloadJson  String        // Структура зависит от типа шага (код, тесты, Markdown)
+  submissions  Submission[]
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  stepId      String
+  step        Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content     String   // Ответ: код, выбранный индекс варианта, ссылка на Scratch
+  status      String   // "PENDING" | "ACCEPTED" | "REJECTED"
+  score       Int      @default(0)
+  feedback    String?  // Замечания и рекомендации куратора
+  attempts    Int      @default(1)
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
