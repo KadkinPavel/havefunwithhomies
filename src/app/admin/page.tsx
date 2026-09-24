@@ -1,62 +1,122 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import AdminDashboardClient from "./AdminDashboardClient";
 
-export default async function AdminDashboard() {
+export default async function AdminPage() {
+  const curators = await prisma.user.findMany({
+    where: { role: "CURATOR" },
+    include: {
+      students: {
+        include: {
+          submissions: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
   const courses = await prisma.course.findMany({
     include: { steps: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const students = await prisma.user.findMany({
+    where: { role: "STUDENT" },
+    include: {
+      curator: true,
+      submissions: {
+        include: {
+          step: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
+  const curatorStats = curators.map((c) => {
+    let pendingCount = 0;
+    let reviewedCount = 0;
+
+    c.students.forEach((st) => {
+      st.submissions.forEach((sub) => {
+        if (sub.status === "PENDING") pendingCount++;
+        if (sub.status === "ACCEPTED" || sub.status === "REJECTED") reviewedCount++;
+      });
+    });
+
+    return {
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      studentsCount: c.students.length,
+      pendingCount,
+      reviewedCount,
+      studentsList: c.students.map((st) => ({
+        id: st.id,
+        name: st.name,
+        lastActiveAt: st.lastActiveAt,
+      })),
+    };
+  });
+
+  const studentStats = students.map((st) => {
+    const totalScore = st.submissions
+      .filter((sub) => sub.status === "ACCEPTED")
+      .reduce((acc, sub) => acc + sub.score, 0);
+
+    const courseProgress = courses.map((course) => {
+      const courseStepIds = new Set(course.steps.map((s) => s.id));
+      const passedSteps = new Set(
+        st.submissions
+          .filter((sub) => sub.status === "ACCEPTED" && courseStepIds.has(sub.stepId))
+          .map((sub) => sub.stepId)
+      );
+
+      const percent = course.steps.length > 0 
+        ? Math.round((passedSteps.size / course.steps.length) * 100) 
+        : 0;
+
+      return {
+        courseId: course.id,
+        courseTitle: course.title,
+        passed: passedSteps.size,
+        total: course.steps.length,
+        percent,
+      };
+    });
+
+    const hoursInactive = (Date.now() - new Date(st.lastActiveAt).getTime()) / (1000 * 60 * 60);
+    let statusText = "В графике";
+    let statusColor = "st-done";
+    if (hoursInactive > 48) {
+      statusText = "Выпадает";
+      statusColor = "st-failed";
+    } else if (hoursInactive > 24) {
+      statusText = "Замедлился";
+      statusColor = "brand-amber";
+    }
+
+    return {
+      id: st.id,
+      name: st.name,
+      email: st.email,
+      curatorId: st.curatorId,
+      curatorName: st.curator?.name || "Не назначен",
+      totalScore,
+      statusText,
+      statusColor,
+      lastActiveAt: st.lastActiveAt,
+      courseProgress,
+    };
+  });
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 space-y-8">
-      <div className="flex items-center justify-between border-b border-zinc-200/80 pb-6">
-        <div>
-          <span className="text-[11px] font-mono tracking-widest text-zinc-400 uppercase">
-            Контур методиста
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 mt-1">
-            Управление образовательными курсами
-          </h1>
-        </div>
-
-        <Link
-          href="/admin/course/new"
-          className="bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition shadow-sm"
-        >
-          + Создать новый курс
-        </Link>
-      </div>
-
-      <div className="space-y-3">
-        {courses.map((course) => (
-          <div
-            key={course.id}
-            className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex items-center justify-between hover:border-zinc-300 transition"
-          >
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold px-2 py-0.5 bg-zinc-100 text-zinc-700 rounded">
-                  {course.gradeRange}
-                </span>
-                <span className="text-xs font-mono text-zinc-400">
-                  {course.steps.length} шагов
-                </span>
-              </div>
-              <h3 className="text-base font-semibold text-zinc-950 mt-1.5">{course.title}</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">{course.description}</p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/admin/course/${course.id}/edit`}
-                className="text-xs font-semibold border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-2 rounded-xl transition"
-              >
-                Редактировать шаги ⚙
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="max-w-6xl mx-auto px-6 py-10 role-staff space-y-8">
+      <AdminDashboardClient
+        curators={curatorStats}
+        rawCurators={curators.map((c) => ({ id: c.id, name: c.name }))}
+        students={studentStats}
+        courses={courses}
+      />
     </div>
   );
 }

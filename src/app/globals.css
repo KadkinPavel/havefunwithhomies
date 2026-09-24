@@ -1,26 +1,60 @@
+@import url("https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-zinc-50 text-zinc-900 antialiased selection:bg-zinc-900 selection:text-white;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  }
+:root {
+  --brand-blue: #3457F0;
+  --brand-blue-hover: #2641C9;
+  --brand-blue-50: #EAF0FE;
+  --brand-blue-200: #C9D5FC;
+  --brand-sky: #7C95FF;
+  --brand-night: #0B1220;
+  --brand-night-2: #131C30;
+  --brand-amber: #F07A2A;
+  --brand-amber-text: #B8520F;
+  --brand-amber-50: #FFF1E6;
+
+  --brand-ink: #0F172A;
+  --brand-ink-2: #4A546B;
+  --brand-ink-3: #7C869C;
+  --brand-line: #E1E6F0;
+  --brand-mist: #F4F6FB;
+  --brand-paper: #FFFFFF;
+
+  --st-done: #17915A;
+  --st-done-bg: #E4F5EC;
+  --st-review: #6E4FE8;
+  --st-review-bg: #EFEBFE;
+  --st-returned: #B8520F;
+  --st-returned-bg: #FFF1E6;
+  --st-failed: #D23B3B;
+  --st-failed-bg: #FCEBEB;
+  --st-progress: #3457F0;
+  --st-progress-bg: #EAF0FE;
+  --st-idle: #5E677D;
+  --st-idle-bg: #F0F2F6;
+
+  --font: "Onest", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* Мягкие скроллбары для минималистичного вида */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+body {
+  font-family: var(--font);
+  color: var(--brand-ink);
+  background: var(--brand-mist);
+  font-variant-numeric: tabular-nums;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* Кабинет ученика — крупная спокойная шкала по брендбуку */
+.role-student {
+  font-size: 18px;
+  line-height: 1.6;
 }
-::-webkit-scrollbar-thumb {
-  background: #e4e4e7;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #d4d4d8;
+
+/* Куратор и администратор — плотная рабочая шкала */
+.role-staff {
+  font-size: 14px;
+  line-height: 1.5;
 }

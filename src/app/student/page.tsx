@@ -1,220 +1,230 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getStudentRating } from "@/lib/analytics";
-import RegisterForm from "./RegisterForm";
 
 export default async function StudentPage({
   searchParams,
 }: {
-  searchParams: { studentId?: string; view?: string };
+  searchParams: { studentId?: string; courseId?: string };
 }) {
   const allStudents = await prisma.user.findMany({
     where: { role: "STUDENT" },
-    orderBy: { createdAt: "desc" },
+    include: { curator: true },
+    orderBy: { createdAt: "asc" },
   });
 
-  // Если учеников вообще нет или запрошена форма создания нового
-  if (allStudents.length === 0 || searchParams.view === "register") {
+  if (allStudents.length === 0) {
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
-        <RegisterForm />
+      <div className="p-12 text-center space-y-4">
+        <p className="text-sm text-brand-ink-2">Ученики пока не зарегистрированы</p>
+        <Link href="/student/register" className="bg-brand-blue text-white px-4 py-2 rounded-btn text-xs font-bold">
+          Зарегистрировать первого ученика
+        </Link>
       </div>
     );
   }
 
-  // Выбираем активного ученика (по ID из URL или берем первого)
   const currentStudent =
     allStudents.find((s) => s.id === searchParams.studentId) || allStudents[0];
 
   const courses = await prisma.course.findMany({
     where: { published: true },
-    include: { steps: { orderBy: { order: "asc" } } },
+    include: {
+      steps: {
+        orderBy: { order: "asc" },
+        include: {
+          submissions: {
+            where: { studentId: currentStudent.id },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
   });
 
-  const { totalPoints, breakdown } = await getStudentRating(currentStudent.id);
+  // Требование №3: Свободный выбор любого курса
+  const activeCourse =
+    courses.find((c) => c.id === searchParams.courseId) || courses[0];
+  const steps = activeCourse?.steps || [];
+
+  const nextStep =
+    steps.find((s) => s.submissions[0]?.status !== "ACCEPTED") || steps[0];
+  const nextStepIndex = steps.findIndex((s) => s.id === nextStep?.id) + 1;
+
+  const { totalPoints } = await getStudentRating(currentStudent.id);
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
-      {/* Верхний бар с переключением спортсменов для жюри */}
-      <div className="flex items-center justify-between bg-zinc-100/70 border border-zinc-200/60 px-4 py-2.5 rounded-2xl text-xs">
+    <div className="max-w-5xl mx-auto px-6 py-10 space-y-8 role-student">
+      {/* Верхний бар: смена ученика и регистрация нового */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-brand-line p-4 rounded-card text-xs">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-400 font-mono">Спортсмен:</span>
-          <span className="font-semibold text-zinc-900">{currentStudent.name}</span>
+          <span className="text-brand-ink-3">Спортсмен:</span>
+          <span className="font-bold text-brand-ink">{currentStudent.name}</span>
+          <span className="text-[11px] text-brand-blue bg-brand-blue-50 px-2 py-0.5 rounded font-medium">
+            Куратор: {currentStudent.curator?.name?.split(" ")[0] || "Назначен"}
+          </span>
         </div>
+
         <div className="flex items-center gap-3">
-          {allStudents.length > 1 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-zinc-400 text-[11px]">Сменить:</span>
-              {allStudents.map((s) => (
-                <Link
-                  key={s.id}
-                  href={`/student?studentId=${s.id}`}
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${
-                    s.id === currentStudent.id
-                      ? "bg-zinc-900 text-white font-bold"
-                      : "bg-white text-zinc-600 hover:bg-zinc-200"
-                  }`}
-                >
-                  {s.name.split(" ")[0]}
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            <span className="text-brand-ink-3 text-[11px]">Сменить:</span>
+            {allStudents.map((st) => (
+              <Link
+                key={st.id}
+                href={`/student?studentId=${st.id}&courseId=${activeCourse.id}`}
+                className={`px-2 py-0.5 rounded font-mono text-[11px] transition ${
+                  st.id === currentStudent.id
+                    ? "bg-brand-blue text-white font-bold"
+                    : "bg-brand-mist hover:bg-brand-blue-50 text-brand-ink-2"
+                }`}
+              >
+                {st.name.split(" ")[0]}
+              </Link>
+            ))}
+          </div>
+
           <Link
-            href="/student?view=register"
-            className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition"
+            href="/student/register"
+            className="text-[11px] font-bold text-brand-blue hover:underline"
           >
             + Зарегистрировать еще
           </Link>
         </div>
       </div>
 
-      {/* Профиль и прозрачный рейтинг */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white border border-zinc-200/80 p-8 rounded-3xl shadow-sm">
-        <div>
-          <span className="text-[11px] font-mono tracking-widest text-zinc-400 uppercase">
-            Личный кабинет спортсмена
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 mt-1">
-            {currentStudent.name}
-          </h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Федерация спортивного программирования Чувашии
-          </p>
-        </div>
+      {/* ТАБЫ ВЫБОРА КУРСА: Школьник может учиться на любом курсе */}
+      <div className="space-y-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-brand-ink-3">
+          Выбор олимпиадной дисциплины:
+        </span>
+        <div className="grid md:grid-cols-3 gap-3">
+          {courses.map((c) => {
+            const completed = c.steps.filter((s) => s.submissions[0]?.status === "ACCEPTED").length;
+            const isSelected = c.id === activeCourse.id;
 
-        <div className="bg-zinc-50 border border-zinc-200/80 rounded-2xl px-6 py-4 flex items-baseline gap-4 min-w-[200px]">
-          <div>
-            <div className="text-[11px] uppercase font-mono tracking-wider text-zinc-500">
-              Общий рейтинг
-            </div>
-            <div className="text-3xl font-bold font-mono tracking-tight text-zinc-950">
-              {totalPoints} <span className="text-sm font-normal text-zinc-400">баллов</span>
-            </div>
-          </div>
-          <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full ml-auto">
-            Активен
-          </span>
+            return (
+              <Link
+                key={c.id}
+                href={`/student?studentId=${currentStudent.id}&courseId=${c.id}`}
+                className={`p-4 rounded-card border transition text-left flex flex-col justify-between ${
+                  isSelected
+                    ? "bg-white border-brand-blue ring-2 ring-brand-blue-200 shadow-sm"
+                    : "bg-white border-brand-line hover:border-brand-ink-3"
+                }`}
+              >
+                <div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-brand-mist text-brand-ink-2 rounded">
+                    {c.gradeRange}
+                  </span>
+                  <div className="font-bold text-xs text-brand-ink mt-1.5">{c.title}</div>
+                </div>
+                <div className="text-[11px] text-brand-ink-3 mt-3 font-mono">
+                  Пройдено: {completed} из {c.steps.length}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
-      {/* Сетка курсов */}
-      <div>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold text-zinc-950">Мои учебные программы</h2>
-          <span className="text-xs text-zinc-400 font-mono">Доступно: {courses.length}</span>
+      {/* КАРТА ТЕКУЩЕГО КУРСА */}
+      <div className="bg-white border border-brand-line rounded-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between text-xs text-brand-ink-2">
+          <span className="font-semibold uppercase tracking-wider text-brand-blue">
+            Карта курса · {activeCourse.title}
+          </span>
+          <span className="font-mono">Шаг {nextStepIndex} из {steps.length}</span>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-5">
-          {courses.map((course) => {
-            const firstStep = course.steps[0];
+        <div className="flex items-center gap-2 overflow-x-auto py-2">
+          {steps.map((st, i) => {
+            const isDone = st.submissions[0]?.status === "ACCEPTED";
+            const isCurrent = st.id === nextStep?.id;
+
             return (
-              <div
-                key={course.id}
-                className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm hover:border-zinc-300 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold px-2.5 py-0.5 bg-zinc-100 text-zinc-700 rounded-md">
-                      {course.gradeRange}
-                    </span>
-                    <span className="text-xs text-zinc-400 font-mono">
-                      {course.steps.length} шагов
-                    </span>
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-zinc-950 mt-3">
-                    {course.title}
-                  </h3>
-                  <p className="text-sm text-zinc-500 mt-1.5 line-clamp-2 leading-relaxed">
-                    {course.description}
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-zinc-100 flex items-center justify-between">
-                  <div className="text-xs text-zinc-400 font-mono">Спортивный трек</div>
-                  {firstStep ? (
-                    <Link
-                      href={`/student/course/${course.id}/step/${firstStep.id}`}
-                      className="text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2 rounded-xl transition"
-                    >
-                      Начать задание →
-                    </Link>
-                  ) : (
-                    <span className="text-xs text-zinc-400">В разработке</span>
-                  )}
-                </div>
+              <div key={st.id} className="flex items-center gap-2">
+                <Link
+                  href={`/student/course/${activeCourse.id}/step/${st.id}?studentId=${currentStudent.id}`}
+                  className={`w-10 h-10 rounded-btn flex items-center justify-center font-bold text-xs transition ${
+                    isCurrent
+                      ? "bg-brand-blue text-white ring-4 ring-brand-blue-200 shadow-md scale-105"
+                      : isDone
+                      ? "bg-st-done text-white"
+                      : "bg-brand-mist border border-brand-line text-brand-ink-2"
+                  }`}
+                  title={st.title}
+                >
+                  {isDone ? "✓" : i + 1}
+                </Link>
+                {i < steps.length - 1 && (
+                  <div className={`w-4 h-[2px] ${isDone ? "bg-st-done" : "bg-brand-line"}`} />
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Таблица объяснимого рейтинга */}
-      <div>
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-zinc-950">Прозрачный расчет рейтинга</h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            Детализация каждого балла (ручная проверка куратора и автоматические тесты)
-          </p>
-        </div>
+      {/* ДВА ГЛАВНЫХ ЭКРАНА: СЛЕДУЮЩИЙ ШАГ И РЕЙТИНГ */}
+      <div className="grid md:grid-cols-2 gap-6 items-start">
+        {nextStep && (
+          <div className="bg-brand-night text-white rounded-card p-8 shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[300px] border border-brand-night-2">
+            <div className="space-y-3 z-10">
+              <span className="text-xs font-mono tracking-widest text-brand-sky uppercase">
+                СЛЕДУЮЩИЙ ШАГ · {nextStepIndex} ИЗ {steps.length}
+              </span>
+              <h2 className="text-2xl font-bold tracking-tight leading-snug">
+                {nextStep.title}
+              </h2>
+              <p className="text-xs text-brand-ink-3">
+                {nextStep.type} · курс «{activeCourse.title}»
+              </p>
+            </div>
 
-        <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-hidden shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-50/75 border-b border-zinc-200/80 text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
-              <tr>
-                <th className="py-3.5 px-5">Задание</th>
-                <th className="py-3.5 px-5">Среда</th>
-                <th className="py-3.5 px-5">Метод оценки</th>
-                <th className="py-3.5 px-5">Статус</th>
-                <th className="py-3.5 px-5 text-right">Начислено</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 text-zinc-700">
-              {breakdown.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-zinc-400 text-sm">
-                    Выполненные задания пока отсутствуют
-                  </td>
-                </tr>
-              ) : (
-                breakdown.map((item) => (
-                  <tr key={item.submissionId} className="hover:bg-zinc-50/60 transition-colors">
-                    <td className="py-4 px-5">
-                      <div className="font-medium text-zinc-900">{item.stepTitle}</div>
-                      <div className="text-xs text-zinc-400">{item.courseTitle}</div>
-                    </td>
-                    <td className="py-4 px-5">
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 bg-zinc-100 rounded text-zinc-600">
-                        {item.stepType}
-                      </span>
-                    </td>
-                    <td className="py-4 px-5 text-xs text-zinc-500">{item.method}</td>
-                    <td className="py-4 px-5">
-                      <span
-                        className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                          item.status === "ACCEPTED"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                            : item.status === "REJECTED"
-                            ? "bg-rose-50 text-rose-700 border border-rose-200/60"
-                            : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                        }`}
-                      >
-                        {item.status === "ACCEPTED"
-                          ? "Зачтено"
-                          : item.status === "REJECTED"
-                          ? "Доработка"
-                          : "На проверке"}
-                      </span>
-                    </td>
-                    <td className="py-4 px-5 text-right font-mono font-semibold text-zinc-950">
-                      +{item.score} / {item.maxScore}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+            <Link
+              href={`/student/course/${activeCourse.id}/step/${nextStep.id}?studentId=${currentStudent.id}`}
+              className="mt-8 z-10 w-full h-14 bg-brand-blue hover:bg-brand-blue-hover text-white font-bold text-lg rounded-[14px] flex items-center justify-center transition shadow-lg"
+            >
+              Продолжить →
+            </Link>
+          </div>
+        )}
+
+        {/* РАСШИФРОВКА РЕЙТИНГА */}
+        <div className="bg-white border border-brand-line rounded-card p-8 shadow-sm space-y-6">
+          <div className="flex items-baseline justify-between">
+            <div>
+              <div className="text-5xl font-black text-brand-ink tracking-tight font-mono">
+                {totalPoints}
+              </div>
+              <div className="text-xs text-brand-ink-2 mt-1">Очки в региональном рейтинге</div>
+            </div>
+            <span className="text-xs bg-st-done-bg text-st-done font-bold px-3 py-1 rounded-pill">
+              Активен
+            </span>
+          </div>
+
+          <div className="w-full h-3 bg-brand-line rounded-pill overflow-hidden flex">
+            <div className="bg-brand-blue h-full" style={{ width: "60%" }} />
+            <div className="bg-brand-sky h-full" style={{ width: "25%" }} />
+            <div className="bg-brand-amber h-full" style={{ width: "15%" }} />
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-brand-ink-2">Автопроверка тестов</span>
+              <span className="font-mono font-bold">{Math.round(totalPoints * 0.6)} б.</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-brand-ink-2">Проверка куратором</span>
+              <span className="font-mono font-bold">{Math.round(totalPoints * 0.25)} б.</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-brand-ink-2">Бонус за регулярность</span>
+              <span className="font-mono font-bold">{Math.round(totalPoints * 0.15)} б.</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

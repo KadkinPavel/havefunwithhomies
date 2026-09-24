@@ -2,146 +2,249 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log("Очистка базы данных...");
   await prisma.submission.deleteMany();
   await prisma.step.deleteMany();
   await prisma.course.deleteMany();
   await prisma.user.deleteMany();
 
-  // Создаем куратора и методиста
-  const curator = await prisma.user.create({
+  console.log("Создание кураторов и учеников...");
+  const curatorAnna = await prisma.user.create({
     data: {
-      id: "curator_elena",
-      name: "Елена Николаева (Куратор ФСП)",
-      email: "curator@fsp21.ru",
-      role: "CURATOR"
-    }
+      id: "curator_anna",
+      name: "Анна Сергеевна (Куратор · Scratch)",
+      email: "anna@fsp21.ru",
+      role: "CURATOR",
+    },
   });
 
-  const admin = await prisma.user.create({
+  const curatorDmitry = await prisma.user.create({
+    data: {
+      id: "curator_dmitry",
+      name: "Дмитрий Алексеев (Куратор · Minecraft)",
+      email: "dmitry@fsp21.ru",
+      role: "CURATOR",
+    },
+  });
+
+  const curatorElena = await prisma.user.create({
+    data: {
+      id: "curator_elena",
+      name: "Елена Николаева (Куратор · Python)",
+      email: "elena@fsp21.ru",
+      role: "CURATOR",
+    },
+  });
+
+  await prisma.user.create({
     data: {
       id: "admin_fsp",
       name: "Оргкомитет Чемпионата Чувашии",
       email: "admin@fsp21.ru",
-      role: "ADMIN"
-    }
+      role: "ADMIN",
+    },
   });
 
-  // Ученики
-  const student1 = await prisma.user.create({
+  const masha = await prisma.user.create({
+    data: {
+      id: "student_masha",
+      name: "Маша К. (4 класс, Лицей №3)",
+      email: "masha@fsp21.ru",
+      role: "STUDENT",
+      curatorId: curatorAnna.id,
+      lastActiveAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    },
+  });
+
+  const ivan = await prisma.user.create({
     data: {
       id: "student_ivan",
-      name: "Иван Васильев (5 класс, Лицей №3 Чебоксары)",
-      email: "ivan@example.ru",
+      name: "Иван П. (5 класс, СОШ №59)",
+      email: "ivan@fsp21.ru",
       role: "STUDENT",
-      curatorId: curator.id,
-      lastActiveAt: new Date()
-    }
+      curatorId: curatorElena.id,
+      lastActiveAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    },
   });
 
-  const student2 = await prisma.user.create({
+  const timur = await prisma.user.create({
     data: {
-      id: "student_anna",
-      name: "Анна Павлова (3 класс, СОШ №59 Чебоксары)",
-      email: "anna@example.ru",
+      id: "student_timur",
+      name: "Тимур А. (3 класс, Гимназия №5)",
+      email: "timur@fsp21.ru",
       role: "STUDENT",
-      curatorId: curator.id,
-      // Эмулируем задержку активности для демонстрации Early Warning алертов
-      lastActiveAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-    }
+      curatorId: curatorDmitry.id,
+      lastActiveAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+    },
   });
 
-  // Курс 1: Алгоритмика для 5-9 классов
-  const courseAlgo = await prisma.course.create({
+  console.log("Загрузка Курса 1: Scratch...");
+  await prisma.course.create({
     data: {
-      title: "Спортивное программирование: Базовый олимпиадный трек",
-      gradeRange: "5-9 класс",
-      description: "Подготовка к региональному этапу. Линейные алгоритмы и условные операторы.",
+      id: "course_scratch",
+      title: "Первые программы в Scratch",
+      gradeRange: "2–4 класс",
+      description: "Сборка программ из блоков, понимание циклов, событий и условий.",
       published: true,
       steps: {
         create: [
           {
-            title: "Задача A: Сумма двух чисел",
+            title: "Шаг 1.1.1. Сцена, спрайты и блоки",
             order: 1,
+            type: "THEORY",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              text: "Scratch — это среда, в которой программы собирают из цветных блоков, как из конструктора. Сцена — прямоугольник справа вверху. Спрайт — персонаж на сцене. Центр сцены — x: 0, y: 0. Левый край — x: -240, правый — x: 240.",
+            }),
+          },
+          {
+            title: "Шаг 1.1.2. Проверь себя: окно Scratch",
+            order: 2,
+            type: "QUIZ",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              question: "Где в Scratch происходит всё, что делает программа?",
+              options: ["В палитре блоков", "На сцене", "В области скриптов", "В меню «Файл»"],
+              correctIndex: 1,
+            }),
+          },
+          {
+            title: "Шаг 1.1.3. Разбор: мяч летит к центру",
+            order: 3,
+            type: "SCRATCH",
+            maxScore: 20,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              task: "Посмотри на программу спрайта Мяч. Собери её у себя и запусти. Мяч начинает с x: -200 и делает 10 раз по 20 шагов вправо. Чему равен x мяча в конце?",
+              correctNumeric: "0",
+            }),
+          },
+          {
+            title: "Шаг 1.2.1. Повторить и всегда",
+            order: 4,
+            type: "THEORY",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              text: "Цикл — блок, который повторяет вложенные команды несколько раз: повторить 10 раз или повторять всегда.",
+            }),
+          },
+          {
+            title: "Шаг 1.2.2. Проверь себя: сколько шагов",
+            order: 5,
+            type: "QUIZ",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              question: "Сколько всего шагов пройдёт спрайт: повторить (3) раз [идти 10 шагов; идти 5 шагов]?",
+              correctNumeric: "45",
+            }),
+          },
+          {
+            title: "Шаг 1.2.4. Разбор: кот по кругу",
+            order: 6,
+            type: "SCRATCH",
+            maxScore: 30,
+            isAutoCheck: false,
+            payloadJson: JSON.stringify({
+              task: "Кот поворачивает на 3 градуса. Замените бесконечный цикл на ровно 1 круг (120 повторений) и фразу Круг!.",
+              criteria: ["Цикл 120 раз", "Кот в начальной точке", "Говорит Круг!"],
+            }),
+          },
+        ],
+      },
+    },
+  });
+
+  console.log("Загрузка Курса 3: Python...");
+  await prisma.course.create({
+    data: {
+      id: "course_python",
+      title: "Алгоритмика: первые задачи на Python",
+      gradeRange: "5–9 класс",
+      description: "Олимпиадные алгоритмы, чтение входных потоков и автоматическое тестирование решений.",
+      published: true,
+      steps: {
+        create: [
+          {
+            title: "Шаг 3.1.1. Как устроена олимпиадная задача",
+            order: 1,
+            type: "THEORY",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              text: "В олимпиадном программировании решение читает входные данные через input() и выводит ТОЛЬКО ответ через print(). Никаких лишних слов.",
+            }),
+          },
+          {
+            title: "Шаг 3.1.2. Проверь себя: вывод ответа",
+            order: 2,
+            type: "QUIZ",
+            maxScore: 10,
+            isAutoCheck: true,
+            payloadJson: JSON.stringify({
+              question: "В задаче нужно вывести сумму двух чисел. Ответ — 7. Что должна напечатать программа?",
+              options: ["Ответ: 7", "7", "сумма = 7", "7.0"],
+              correctIndex: 1,
+            }),
+          },
+          {
+            title: "Шаг 3.1.3. Задача: сумма двух чисел",
+            order: 3,
             type: "CODE",
             maxScore: 100,
             isAutoCheck: true,
             payloadJson: JSON.stringify({
-              task: "Напишите функцию solve(input), которая принимает строку из двух чисел через пробел и возвращает их сумму.",
-              starterCode: "function solve(input) {\n  const [a, b] = input.split(' ').map(Number);\n  return a + b;\n}",
+              task: "Даны два целых числа a и b в одной строке через пробел. Выведите их сумму.",
+              starterCode: "a, b = map(int, input().split())\\nprint(a + b)",
               testCases: [
-                { input: "2 3", expectedOutput: "5" },
-                { input: "100 250", expectedOutput: "350" },
-                { input: "-10 10", expectedOutput: "0" }
-              ]
-            })
+                { num: "1", input: "2 3", expectedOutput: "5", visibility: "пример в условии" },
+                { num: "2", input: "-5 7", expectedOutput: "2", visibility: "пример в условии" },
+                { num: "3", input: "0 0", expectedOutput: "0", visibility: "скрытый" },
+                { num: "4", input: "1000000000 1000000000", expectedOutput: "2000000000", visibility: "скрытый" },
+              ],
+            }),
           },
           {
-            title: "Контрольный вопрос: Сложность алгоритма",
-            order: 2,
-            type: "QUIZ",
-            maxScore: 20,
+            title: "Шаг 3.1.4. Задача: парты",
+            order: 4,
+            type: "CODE",
+            maxScore: 100,
             isAutoCheck: true,
             payloadJson: JSON.stringify({
-              question: "Какова асимптотическая сложность бинарного поиска в отсортированном массиве?",
-              options: ["O(N)", "O(log N)", "O(N^2)", "O(1)"],
-              correctIndex: 1
-            })
-          }
-        ]
-      }
-    }
-  });
-
-  // Курс 2: Начальное программирование (Scratch + Minecraft)
-  const courseJunior = await prisma.course.create({
-    data: {
-      title: "Визуальное олимпиадное программирование: Scratch и Minecraft",
-      gradeRange: "1-4 класс",
-      description: "Изучение алгоритмических конструкций через блочные среды для младших школьников.",
-      published: true,
-      steps: {
-        create: [
-          {
-            title: "Проект Scratch: Лабиринт спрайта",
-            order: 1,
-            type: "SCRATCH",
-            maxScore: 50,
-            isAutoCheck: false,
-            payloadJson: JSON.stringify({
-              task: "Создайте программу, в которой персонаж проходит лабиринт, не касаясь черных стен, используя блоки событий и сенсоров."
-            })
+              task: "В школе 3 класса. За партой сидят двое. Дано число учеников в 3 строках. Найдите наименьшее число парт.",
+              starterCode: "a = int(input())\\nb = int(input())\\nc = int(input())\\nprint((a + 1) // 2 + (b + 1) // 2 + (c + 1) // 2)",
+              testCases: [
+                { num: "1", input: "20\\n21\\n22", expectedOutput: "32", visibility: "пример в условии" },
+                { num: "2", input: "1\\n1\\n1", expectedOutput: "3", visibility: "пример в условии" },
+                { num: "3", input: "2\\n2\\n2", expectedOutput: "3", visibility: "скрытый" },
+              ],
+            }),
           },
-          {
-            title: "Minecraft Education: Агент-строитель",
-            order: 2,
-            type: "MINECRAFT",
-            maxScore: 50,
-            isAutoCheck: false,
-            payloadJson: JSON.stringify({
-              task: "Запрограммируйте агента в MakeCode построить башню 5x5 блоков высотой 10 блоков с использованием цикла."
-            })
-          }
-        ]
-      }
-    }
+        ],
+      },
+    },
   });
 
-  // Демонстрационная работа в очереди куратора
-  const scratchStep = await prisma.step.findFirst({ where: { type: "SCRATCH" } });
+  const scratchStep = await prisma.step.findFirst({ where: { title: { contains: "кот по кругу" } } });
   if (scratchStep) {
     await prisma.submission.create({
       data: {
-        studentId: student1.id,
+        studentId: masha.id,
         stepId: scratchStep.id,
-        content: "https://scratch.mit.edu/projects/987654321/ (Реализовал управление через стрелки и проверку касания)",
+        content: "https://scratch.mit.edu/projects/987654321/ (Кот проходит 120 раз и говорит Круг!)",
         status: "PENDING",
         score: 0,
-        attempts: 1
-      }
+        attempts: 1,
+      },
     });
   }
 
-  console.log("Данные успешно инициализированы!");
+  console.log("Официальный пакет материалов успешно импортирован!");
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
